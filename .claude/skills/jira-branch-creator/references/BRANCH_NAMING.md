@@ -53,3 +53,13 @@ feature/SSCVE-202        ← 한글 요약이어서 이슈 키만 사용
 - **SSCVE 프로젝트 키만 허용** → 다른 키 입력 시 즉시 중단
 - 이미 존재하는 브랜치명 → 에러 후 중단 (덮어쓰기 없음)
 - base 브랜치는 `develop` 우선 → 없으면 `main` → 없으면 `master` 순서로 폴백
+
+## 개인 프로젝트 예외 규칙
+
+개인 프로젝트에서는 별도 브랜치를 생성하지 않고 `main` 브랜치에 직접 push합니다.
+
+```bash
+git add .
+git commit -m "feat: 작업 내용"
+git push origin main
+```
