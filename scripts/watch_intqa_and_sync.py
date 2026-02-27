@@ -54,8 +54,13 @@ TOKEN                = os.environ.get("JIRA_API_TOKEN", "")
 
 SOURCE_PROJECT       = "INTQA"
 TARGET_PROJECT       = "SSCVE"
-TARGET_ISSUE_TYPE_ID = "10124"  # 작업
-LINK_TYPE_ID         = "10000"  # 문의대응 (outward: 문의대응 처리 이슈)
+TARGET_ISSUE_TYPE_ID = "10124"                    # 작업
+LINK_TYPE_ID         = "10000"                    # 문의대응 (outward: 문의대응 처리 이슈)
+
+# SSCVE 이슈 생성 옵션
+ASSIGNEE_ID  = "60fe2779e6e6f800718020a3"  # 하수임 (고정)
+PARENT_KEY   = "SSCVE-2561"               # 실행 시 프롬프트로 변경 가능
+FIX_VERSION  = "2.0.32"                   # 실행 시 프롬프트로 변경 가능
 
 _DEFAULT_LOG_DIR = Path.home() / "Desktop" / "jira-sync-logs"
 LOG_DIR          = Path(os.environ.get("LOG_DIR", str(_DEFAULT_LOG_DIR)))
@@ -124,12 +129,32 @@ def log_skip(msg: str) -> None: logger.log(SKIP_LEVEL, msg)
 def check_env() -> None:
     missing = [v for v in ("JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN") if not os.environ.get(v)]
     if missing:
-        print(f"[ERROR] 환경변수 누락: {', '.join(missing)}")
+        logger.error(f"환경변수 누락: {', '.join(missing)}")
         sys.exit(1)
 
 
 def _auth_header() -> str:
     return "Basic " + base64.b64encode(f"{EMAIL}:{TOKEN}".encode()).decode()
+
+
+_fix_version_id_cache: str | None = None
+
+
+def fetch_fix_version_id(version_name: str) -> str | None:
+    """버전명으로 SSCVE 프로젝트의 버전 ID 조회 (결과 캐싱)"""
+    global _fix_version_id_cache
+    if _fix_version_id_cache is not None:
+        return _fix_version_id_cache
+
+    data = jira_get(f"/rest/api/3/project/{TARGET_PROJECT}/versions")
+    if not data:
+        return None
+    for v in data:
+        if v.get("name") == version_name:
+            _fix_version_id_cache = v["id"]
+            return _fix_version_id_cache
+    logger.warning(f"버전 '{version_name}'을 찾을 수 없습니다.")
+    return None
 
 
 def jira_get(path: str) -> dict | None:
@@ -206,14 +231,27 @@ def fetch_linked_sscve_key(intqa_key: str) -> str | None:
 
 
 def create_sscve_issue(summary: str) -> str | None:
-    """SSCVE에 작업 이슈 생성 -> 새 이슈 키 반환. 실패 시 None."""
-    _, data = jira_post("/rest/api/3/issue", {
-        "fields": {
-            "project":   {"key": TARGET_PROJECT},
-            "summary":   summary,
-            "issuetype": {"id": TARGET_ISSUE_TYPE_ID},
-        }
-    })
+    """SSCVE에 작업 이슈 생성 -> 새 이슈 키 반환. 실패 시 None.
+
+    담당자, 상위 항목(에픽), 수정 버전을 자동으로 지정합니다.
+    SSCVE_PARENT_KEY, SSCVE_FIX_VERSION, SSCVE_ASSIGNEE_ID 환경변수로 변경 가능.
+    """
+    fields: dict = {
+        "project":   {"key": TARGET_PROJECT},
+        "summary":   summary,
+        "issuetype": {"id": TARGET_ISSUE_TYPE_ID},
+        "assignee":  {"accountId": ASSIGNEE_ID},
+    }
+
+    if PARENT_KEY:
+        fields["parent"] = {"key": PARENT_KEY}
+
+    if FIX_VERSION:
+        version_id = fetch_fix_version_id(FIX_VERSION)
+        if version_id:
+            fields["fixVersions"] = [{"id": version_id}]
+
+    _, data = jira_post("/rest/api/3/issue", {"fields": fields})
     if data and "key" in data:
         return data["key"]
     return None
@@ -273,25 +311,36 @@ def parse_interval() -> int:
     return 30
 
 
+def prompt_settings() -> None:
+    """PARENT_KEY, FIX_VERSION 을 실행 시 프롬프트로 변경할 수 있습니다."""
+    global PARENT_KEY, FIX_VERSION
+
+    print(f"  상위 항목 (에픽) [{PARENT_KEY}]: ", end="", flush=True)
+    val = input().strip()
+    if val:
+        PARENT_KEY = val
+
+    print(f"  수정 버전        [{FIX_VERSION}]: ", end="", flush=True)
+    val = input().strip()
+    if val:
+        FIX_VERSION = val
+
+    logger.info(f"설정 - 상위 항목: {PARENT_KEY}, 수정 버전: {FIX_VERSION}")
+
+
 def main() -> None:
     global logger
+    logger   = _setup_logger()
     check_env()
 
-    logger   = _setup_logger()
     interval = parse_interval()
     log_file = LOG_DIR / f"watch_intqa_{datetime.now().strftime('%Y%m%d')}.log"
 
-    print("=" * 56)
-    print(f"  INTQA 처리중 감시 -> SSCVE 자동 동기화 워처")
-    print("=" * 56)
-    print(f"  폴링 간격 : {interval}초")
-    print(f"  로그 파일 : {log_file}")
-    print(f"  Ctrl+C    : 종료")
-    print("=" * 56)
-    print()
-
+    logger.info("INTQA 처리중 감시 -> SSCVE 자동 동기화 워처")
+    prompt_settings()
     logger.info(f"워처 시작 (폴링 간격: {interval}초)")
     logger.info(f"로그 파일: {log_file}")
+    logger.info("종료하려면 Ctrl+C 를 누르세요")
 
     # 초기 스캔
     logger.info("초기 상태 스캔 중...")
@@ -331,7 +380,6 @@ def main() -> None:
 
         except KeyboardInterrupt:
             logger.info("워처 종료")
-            print()
             break
 
 
