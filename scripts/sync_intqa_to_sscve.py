@@ -5,8 +5,9 @@ INTQA → SSCVE 이슈 동기화 스크립트
 INTQA 프로젝트에서 현재 사용자(하수임)에게 할당되고 상태가 '처리중'인 이슈를
 SSCVE 프로젝트에 동일한 제목(summary)으로 새 이슈(작업)를 생성합니다.
 
-생성된 SSCVE 이슈에는 'intqa-sync-INTQA-XXXX' 레이블이 붙으며,
-이 레이블로 중복 생성을 방지합니다.
+중복 방지:
+  - INTQA 이슈에 '문의대응 처리 이슈' 링크(SSCVE 연결)가 이미 있으면 생성 건너뜀
+  - 생성 후 INTQA ↔ SSCVE 간 '문의대응' 이슈 링크를 자동으로 추가
 
 Usage:
     python scripts/sync_intqa_to_sscve.py
@@ -39,8 +40,8 @@ TOKEN    = os.environ.get("JIRA_API_TOKEN", "")
 
 SOURCE_PROJECT       = "INTQA"
 TARGET_PROJECT       = "SSCVE"
-TARGET_ISSUE_TYPE_ID = "10124"   # 작업
-LABEL_PREFIX         = "intqa-sync-"  # e.g. intqa-sync-INTQA-4625
+TARGET_ISSUE_TYPE_ID = "10124"  # 작업
+LINK_TYPE_ID         = "10000"  # 문의대응 (outward: 문의대응 처리 이슈)
 
 
 # ─── 유틸리티 ────────────────────────────────────────────────────────────────
@@ -56,7 +57,25 @@ def _auth_header() -> str:
     return "Basic " + base64.b64encode(f"{EMAIL}:{TOKEN}".encode()).decode()
 
 
-def jira_post(path: str, payload: dict) -> dict | None:
+def jira_get(path: str) -> dict | None:
+    """GET 요청"""
+    req = urllib.request.Request(
+        f"{JIRA_URL}{path}",
+        headers={"Authorization": _auth_header(), "Accept": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        print(f"[ERROR] API {e.code} {e.reason}: {e.read().decode()[:300]}")
+        return None
+    except urllib.error.URLError as e:
+        print(f"[ERROR] 네트워크 오류: {e.reason}")
+        return None
+
+
+def jira_post(path: str, payload: dict) -> tuple[int, dict | None]:
+    """POST 요청 → (status_code, body) 반환. body가 빈 경우 None."""
     body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         f"{JIRA_URL}{path}",
@@ -70,20 +89,21 @@ def jira_post(path: str, payload: dict) -> dict | None:
     )
     try:
         with urllib.request.urlopen(req) as resp:
-            return json.loads(resp.read().decode())
+            raw = resp.read()
+            return resp.status, json.loads(raw) if raw.strip() else None
     except urllib.error.HTTPError as e:
         print(f"[ERROR] API {e.code} {e.reason}: {e.read().decode()[:300]}")
-        return None
+        return e.code, None
     except urllib.error.URLError as e:
         print(f"[ERROR] 네트워크 오류: {e.reason}")
-        return None
+        return 0, None
 
 
 # ─── 핵심 로직 ───────────────────────────────────────────────────────────────
 
 def fetch_intqa_in_progress() -> list[dict]:
     """INTQA에서 현재 사용자 할당 + 처리중 이슈 조회"""
-    data = jira_post("/rest/api/3/search/jql", {
+    _, data = jira_post("/rest/api/3/search/jql", {
         "jql": (
             f"project={SOURCE_PROJECT} "
             "AND assignee=currentUser() "
@@ -96,70 +116,46 @@ def fetch_intqa_in_progress() -> list[dict]:
     if not data:
         return []
     issues = data.get("issues", [])
-    total  = data.get("total", len(issues))
-    print(f"  {SOURCE_PROJECT} 처리중 이슈: {total}건 조회됨")
+    print(f"  {SOURCE_PROJECT} 처리중 이슈: {len(issues)}건 조회됨")
     return issues
 
 
-def fetch_already_synced_keys() -> set[str]:
-    """SSCVE에서 intqa-sync-* 레이블로 이미 동기화된 INTQA 키 목록 반환"""
-    data = jira_post("/rest/api/3/search/jql", {
-        "jql": (
-            f'project={TARGET_PROJECT} '
-            f'AND labels in labelsOf("{TARGET_PROJECT}") '
-            f'AND labels ~ "{LABEL_PREFIX}"'
-        ),
-        "fields": ["labels"],
-        "maxResults": 500,
-    })
-
-    synced: set[str] = set()
+def fetch_linked_sscve_key(intqa_key: str) -> str | None:
+    """INTQA 이슈에 '문의대응 처리 이슈' 링크로 연결된 SSCVE 키 반환. 없으면 None."""
+    data = jira_get(f"/rest/api/3/issue/{intqa_key}?fields=issuelinks")
     if not data:
-        return synced
-
-    for issue in data.get("issues", []):
-        for label in issue["fields"].get("labels", []):
-            if label.startswith(LABEL_PREFIX):
-                intqa_key = label[len(LABEL_PREFIX):]  # e.g. "INTQA-4625"
-                synced.add(intqa_key)
-    return synced
-
-
-def fetch_already_synced_keys_v2() -> set[str]:
-    """SSCVE에서 intqa-sync-* 레이블이 있는 이슈를 조회하여 이미 동기화된 INTQA 키 반환
-
-    Jira labelsOf 함수가 지원되지 않는 경우를 위한 대안 방법.
-    SSCVE 전체 이슈 중 최근 200건의 레이블을 확인합니다.
-    """
-    data = jira_post("/rest/api/3/search/jql", {
-        "jql": f"project={TARGET_PROJECT} ORDER BY created DESC",
-        "fields": ["labels"],
-        "maxResults": 200,
-    })
-
-    synced: set[str] = set()
-    if not data:
-        return synced
-
-    for issue in data.get("issues", []):
-        for label in issue["fields"].get("labels", []):
-            if label.startswith(LABEL_PREFIX):
-                intqa_key = label[len(LABEL_PREFIX):]
-                synced.add(intqa_key)
-    return synced
+        return None
+    for link in data["fields"].get("issuelinks", []):
+        if link.get("type", {}).get("id") != LINK_TYPE_ID:
+            continue
+        outward = link.get("outwardIssue", {})
+        if outward.get("key", "").startswith(f"{TARGET_PROJECT}-"):
+            return outward["key"]
+    return None
 
 
-def create_sscve_issue(intqa_key: str, summary: str) -> dict | None:
-    """SSCVE에 작업 이슈 생성 (intqa-sync-* 레이블 포함)"""
-    label = f"{LABEL_PREFIX}{intqa_key}"
-    return jira_post("/rest/api/3/issue", {
+def create_sscve_issue(summary: str) -> str | None:
+    """SSCVE에 작업 이슈 생성 → 새 이슈 키 반환. 실패 시 None."""
+    status, data = jira_post("/rest/api/3/issue", {
         "fields": {
             "project":   {"key": TARGET_PROJECT},
             "summary":   summary,
             "issuetype": {"id": TARGET_ISSUE_TYPE_ID},
-            "labels":    [label],
         }
     })
+    if data and "key" in data:
+        return data["key"]
+    return None
+
+
+def create_issue_link(intqa_key: str, sscve_key: str) -> bool:
+    """INTQA → SSCVE '문의대응 처리 이슈' 링크 생성"""
+    status, _ = jira_post("/rest/api/3/issueLink", {
+        "type":          {"id": LINK_TYPE_ID},
+        "inwardIssue":   {"key": intqa_key},   # 문의대응에 접수된 이슈
+        "outwardIssue":  {"key": sscve_key},   # 문의대응 처리 이슈
+    })
+    return status == 201
 
 
 # ─── 메인 ────────────────────────────────────────────────────────────────────
@@ -173,47 +169,43 @@ def main() -> None:
     print()
 
     # Step 1: INTQA 처리중 이슈 조회
-    print(f"[1/3] {SOURCE_PROJECT} 처리중 이슈 조회 중...")
+    print(f"[1/2] {SOURCE_PROJECT} 처리중 이슈 조회 중...")
     intqa_issues = fetch_intqa_in_progress()
     if not intqa_issues:
         print("  처리중인 이슈가 없습니다. 종료합니다.")
         return
     print()
 
-    # Step 2: 이미 동기화된 INTQA 키 확인 (레이블 기반)
-    print(f"[2/3] {TARGET_PROJECT} 동기화 이력 확인 중 (레이블 기반)...")
-    already_synced = fetch_already_synced_keys_v2()
-    print(f"  이미 동기화된 이슈: {len(already_synced)}건")
-    if already_synced:
-        for k in sorted(already_synced):
-            print(f"    - {k}")
-    print()
-
-    # Step 3: 신규 이슈만 SSCVE에 생성
-    print(f"[3/3] {TARGET_PROJECT}에 이슈 생성 중...")
+    # Step 2: 링크 확인 후 신규만 생성
+    print(f"[2/2] {TARGET_PROJECT} 이슈 생성 중...")
     created, skipped = 0, 0
 
     for issue in intqa_issues:
         key     = issue["key"]
         summary = issue["fields"]["summary"]
 
-        if key in already_synced:
-            print(f"  [SKIP] [{key}] 이미 동기화됨 - 건너뜀")
+        # 이미 연결된 SSCVE 이슈가 있으면 건너뜀
+        linked_key = fetch_linked_sscve_key(key)
+        if linked_key:
+            print(f"  [SKIP] [{key}] 이미 연결된 SSCVE 이슈 존재: {linked_key}")
             print(f"         제목: {summary}")
             skipped += 1
             continue
 
-        result = create_sscve_issue(key, summary)
-        if result and "key" in result:
-            new_key = result["key"]
-            print(f"  [OK]   [{key}] -> [{new_key}] 생성 완료")
+        # SSCVE 이슈 생성
+        new_key = create_sscve_issue(summary)
+        if not new_key:
+            print(f"  [FAIL] [{key}] SSCVE 이슈 생성 실패")
             print(f"         제목: {summary}")
-            print(f"         레이블: {LABEL_PREFIX}{key}")
-            already_synced.add(key)
-            created += 1
-        else:
-            print(f"  [FAIL] [{key}] 생성 실패")
-            print(f"         제목: {summary}")
+            continue
+
+        # 이슈 링크 생성 (INTQA → SSCVE, 문의대응 처리 이슈)
+        linked = create_issue_link(key, new_key)
+        link_status = "링크 완료" if linked else "링크 실패 (수동 연결 필요)"
+
+        print(f"  [OK]   [{key}] -> [{new_key}] 생성 완료 / {link_status}")
+        print(f"         제목: {summary}")
+        created += 1
 
     print()
     print("=" * 52)
