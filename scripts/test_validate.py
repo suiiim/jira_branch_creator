@@ -54,7 +54,7 @@ def make_branch_name_test(issue_type: str, summary: str) -> str:
             prefix = "feature"
 
     slug = re.sub(r"[^a-z0-9]+", "-", summary.lower()).strip("-")[:50]
-    key  = "TEST-001"
+    key = "TEST-001"
     return f"{prefix}/{key}-{slug}" if slug else f"{prefix}/{key}"
 
 
@@ -73,10 +73,10 @@ def main() -> None:
     # ─── 1. 디렉토리 구조 검증 ───────────────────────────────────────────
     print("📁 Directory Structure")
     skill_md = os.path.join(SKILL_ROOT, "SKILL.md")
-    test("SKILL.md exists",         os.path.isfile(skill_md))
-    test("scripts/ exists",         os.path.isdir(os.path.join(SKILL_ROOT, "scripts")))
-    test("references/ exists",      os.path.isdir(os.path.join(SKILL_ROOT, "references")))
-    test("assets/ exists",          os.path.isdir(os.path.join(SKILL_ROOT, "assets")))
+    test("SKILL.md exists", os.path.isfile(skill_md))
+    test("scripts/ exists", os.path.isdir(os.path.join(SKILL_ROOT, "scripts")))
+    test("references/ exists", os.path.isdir(os.path.join(SKILL_ROOT, "references")))
+    test("assets/ exists", os.path.isdir(os.path.join(SKILL_ROOT, "assets")))
 
     for f in [
         "scripts/create_branch_from_jira.sh",
@@ -105,7 +105,7 @@ def main() -> None:
             name = name_match.group(1).strip()
             test("name is lowercase with hyphens only",
                  bool(re.match(r"^[a-z][a-z0-9-]*[a-z0-9]$", name)), f"got: '{name}'")
-            test("name <= 64 chars",         len(name) <= 64,    f"got: {len(name)}")
+            test("name <= 64 chars", len(name) <= 64, f"got: {len(name)}")
             test("name has no consecutive hyphens", "--" not in name)
 
             dir_name = os.path.basename(SKILL_ROOT)
@@ -120,7 +120,7 @@ def main() -> None:
         test("'description' field exists", desc_match is not None)
         if desc_match:
             desc = desc_match.group(1).strip()
-            test("description is non-empty",  len(desc) > 0)
+            test("description is non-empty", len(desc) > 0)
             test("description <= 1024 chars", len(desc) <= 1024, f"got: {len(desc)}")
     print()
 
@@ -150,8 +150,8 @@ def main() -> None:
             with open(config_path, encoding="utf-8") as fh:
                 data = json.load(fh)
             test("config.template.json is valid JSON", True)
-            test("config has 'jira' section",          "jira" in data)
-            test("config has 'git' section",           "git" in data)
+            test("config has 'jira' section", "jira" in data)
+            test("config has 'git' section", "git" in data)
             test("config has 'branch_naming' section", "branch_naming" in data)
         except json.JSONDecodeError as e:
             test("config.template.json is valid JSON", False, str(e))
@@ -160,13 +160,13 @@ def main() -> None:
     # ─── 5. 브랜치명 생성 로직 단위 테스트 ───────────────────────────────
     print("🌿 Branch Name Generation Tests")
     cases: list[tuple[str, str, str]] = [
-        ("Bug",   "Fix login error",            "bugfix/TEST-001-fix-login-error"),
-        ("Story", "Add user profile page",      "feature/TEST-001-add-user-profile-page"),
-        ("Task",  "Update CI/CD pipeline",      "task/TEST-001-update-ci-cd-pipeline"),
-        ("Epic",  "Payment system",             "epic/TEST-001-payment-system"),
-        ("Story", "로그인 기능 구현",             "feature/TEST-001"),          # 한글만
-        ("Story", "Add OAuth2 로그인",           "feature/TEST-001-add-oauth2"), # 혼합
-        ("Bug",   "Fix   multiple   spaces!!!", "bugfix/TEST-001-fix-multiple-spaces"),
+        ("Bug", "Fix login error", "bugfix/TEST-001-fix-login-error"),
+        ("Story", "Add user profile page", "feature/TEST-001-add-user-profile-page"),
+        ("Task", "Update CI/CD pipeline", "task/TEST-001-update-ci-cd-pipeline"),
+        ("Epic", "Payment system", "epic/TEST-001-payment-system"),
+        ("Story", "로그인 기능 구현", "feature/TEST-001"),  # 한글만
+        ("Story", "Add OAuth2 로그인", "feature/TEST-001-add-oauth2"),  # 혼합
+        ("Bug", "Fix   multiple   spaces!!!", "bugfix/TEST-001-fix-multiple-spaces"),
     ]
 
     for itype, summary, expected in cases:
@@ -177,8 +177,8 @@ def main() -> None:
     # ─── 6. SKILL.md 크기 검증 ───────────────────────────────────────────
     print("📏 SKILL.md Size Check")
     lines = content.split("\n")
-    test("SKILL.md under 500 lines (recommended)", len(lines) <= 500,  f"got: {len(lines)} lines")
-    test("SKILL.md under 5000 tokens (~20KB)",     len(content) < 20000, f"got: {len(content)} chars")
+    test("SKILL.md under 500 lines (recommended)", len(lines) <= 500, f"got: {len(lines)} lines")
+    test("SKILL.md under 5000 tokens (~20KB)", len(content) < 20000, f"got: {len(content)} chars")
     print()
 
     # ─── 결과 요약 ───────────────────────────────────────────────────────

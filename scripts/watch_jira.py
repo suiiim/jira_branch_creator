@@ -31,16 +31,15 @@ import urllib.error
 import base64
 from datetime import datetime
 
-
 # ─── 설정 ────────────────────────────────────────────────────────────────────
 
-JIRA_URL      = os.environ.get("JIRA_BASE_URL", "")
-EMAIL         = os.environ.get("JIRA_EMAIL", "")
-TOKEN         = os.environ.get("JIRA_API_TOKEN", "")
-PROJECT       = os.environ.get("JIRA_PROJECT_KEY", "")
-REPO_PATH     = os.environ.get("REPO_PATH", os.getcwd())
+JIRA_URL = os.environ.get("JIRA_BASE_URL", "")
+EMAIL = os.environ.get("JIRA_EMAIL", "")
+TOKEN = os.environ.get("JIRA_API_TOKEN", "")
+PROJECT = os.environ.get("JIRA_PROJECT_KEY", "")
+REPO_PATH = os.environ.get("REPO_PATH", os.getcwd())
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "30"))
-BASE_BRANCH   = os.environ.get("BASE_BRANCH", "develop")
+BASE_BRANCH = os.environ.get("BASE_BRANCH", "develop")
 
 ALLOWED_PROJECT = "SSCVE"
 
@@ -72,9 +71,9 @@ def check_env() -> None:
 
 def jira_request(path: str) -> dict | None:
     """Jira REST API 요청"""
-    url  = f"{JIRA_URL}{path}"
+    url = f"{JIRA_URL}{path}"
     creds = base64.b64encode(f"{EMAIL}:{TOKEN}".encode()).decode()
-    req   = urllib.request.Request(url, headers={
+    req = urllib.request.Request(url, headers={
         "Authorization": f"Basic {creds}",
         "Accept": "application/json",
     })
@@ -104,8 +103,8 @@ def get_recent_issues(project_key: str, since_minutes: int = 2) -> list[dict]:
 
 def make_branch_name(issue: dict) -> str:
     """이슈 정보로부터 브랜치명 생성 (match-case 사용)"""
-    key     = issue["key"]
-    itype   = issue["fields"]["issuetype"]["name"].lower()
+    key = issue["key"]
+    itype = issue["fields"]["issuetype"]["name"].lower()
     summary = issue["fields"]["summary"]
 
     # Python 3.10+ match-case
@@ -191,10 +190,10 @@ def main() -> None:
             for issue in issues:
                 if issue["key"] not in seen:
                     seen.add(issue["key"])
-                    branch  = make_branch_name(issue)
-                    ts      = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    branch = make_branch_name(issue)
+                    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     summary = issue["fields"]["summary"]
-                    itype   = issue["fields"]["issuetype"]["name"]
+                    itype = issue["fields"]["issuetype"]["name"]
 
                     print(f"[{ts}] 🆕 New issue detected!")
                     print(f"    Key     : {issue['key']}")

@@ -45,25 +45,24 @@ from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-
 # ─── 설정 ────────────────────────────────────────────────────────────────────
 
-JIRA_URL             = os.environ.get("JIRA_BASE_URL", "")
-EMAIL                = os.environ.get("JIRA_EMAIL", "")
-TOKEN                = os.environ.get("JIRA_API_TOKEN", "")
+JIRA_URL = os.environ.get("JIRA_BASE_URL", "")
+EMAIL = os.environ.get("JIRA_EMAIL", "")
+TOKEN = os.environ.get("JIRA_API_TOKEN", "")
 
-SOURCE_PROJECT       = "INTQA"
-TARGET_PROJECT       = "SSCVE"
-TARGET_ISSUE_TYPE_ID = "10124"                    # 작업
-LINK_TYPE_ID         = "10000"                    # 문의대응 (outward: 문의대응 처리 이슈)
+SOURCE_PROJECT = "INTQA"
+TARGET_PROJECT = "SSCVE"
+TARGET_ISSUE_TYPE_ID = "10124"  # 작업
+LINK_TYPE_ID = "10000"  # 문의대응 (outward: 문의대응 처리 이슈)
 
 # SSCVE 이슈 생성 옵션
-ASSIGNEE_ID  = "60fe2779e6e6f800718020a3"  # 하수임 (고정)
-PARENT_KEY   = "SSCVE-2561"               # 실행 시 프롬프트로 변경 가능
-FIX_VERSION  = "2.0.32"                   # 실행 시 프롬프트로 변경 가능
+ASSIGNEE_ID = "60fe2779e6e6f800718020a3"  # 하수임 (고정)
+PARENT_KEY = "SSCVE-2561"  # 실행 시 프롬프트로 변경 가능
+FIX_VERSION = "2.0.32"  # 실행 시 프롬프트로 변경 가능
 
 _DEFAULT_LOG_DIR = Path.home() / "Desktop" / "jira-sync-logs"
-LOG_DIR          = Path(os.environ.get("LOG_DIR", str(_DEFAULT_LOG_DIR)))
+LOG_DIR = Path(os.environ.get("LOG_DIR", str(_DEFAULT_LOG_DIR)))
 
 
 # ─── 로거 설정 ────────────────────────────────────────────────────────────────
@@ -71,24 +70,24 @@ LOG_DIR          = Path(os.environ.get("LOG_DIR", str(_DEFAULT_LOG_DIR)))
 class _LevelFormatter(logging.Formatter):
     """레벨명을 5자로 패딩: INFO -> INFO , ERROR -> ERROR"""
     LEVEL_MAP = {
-        "INFO":     "INFO ",
-        "WARNING":  "WARN ",
-        "ERROR":    "ERROR",
+        "INFO": "INFO ",
+        "WARNING": "WARN ",
+        "ERROR": "ERROR",
         "CRITICAL": "ERROR",
-        "OK":       "OK   ",
-        "SKIP":     "SKIP ",
+        "OK": "OK   ",
+        "SKIP": "SKIP ",
     }
 
     def format(self, record: logging.LogRecord) -> str:
         level = self.LEVEL_MAP.get(record.levelname, record.levelname[:5].ljust(5))
-        dt    = datetime.fromtimestamp(record.created).strftime("%Y-%m-%d %H:%M:%S")
+        dt = datetime.fromtimestamp(record.created).strftime("%Y-%m-%d %H:%M:%S")
         return f"[{dt}] [{level}] {record.getMessage()}"
 
 
 # 커스텀 레벨
-OK_LEVEL   = 25
+OK_LEVEL = 25
 SKIP_LEVEL = 26
-logging.addLevelName(OK_LEVEL,   "OK")
+logging.addLevelName(OK_LEVEL, "OK")
 logging.addLevelName(SKIP_LEVEL, "SKIP")
 
 
@@ -103,7 +102,7 @@ def _setup_logger() -> logging.Logger:
         log_file, when="midnight", interval=1,
         backupCount=0, encoding="utf-8"
     )
-    file_handler.suffix   = "%Y%m%d"
+    file_handler.suffix = "%Y%m%d"
     file_handler.setFormatter(formatter)
 
     # 콘솔 핸들러
@@ -120,7 +119,9 @@ def _setup_logger() -> logging.Logger:
 logger: logging.Logger = None  # main()에서 초기화
 
 
-def log_ok(msg: str)   -> None: logger.log(OK_LEVEL,   msg)
+def log_ok(msg: str) -> None: logger.log(OK_LEVEL, msg)
+
+
 def log_skip(msg: str) -> None: logger.log(SKIP_LEVEL, msg)
 
 
@@ -175,13 +176,13 @@ def jira_get(path: str) -> dict | None:
 
 def jira_post(path: str, payload: dict) -> tuple[int, dict | None]:
     body = json.dumps(payload).encode("utf-8")
-    req  = urllib.request.Request(
+    req = urllib.request.Request(
         f"{JIRA_URL}{path}",
         data=body,
         headers={
             "Authorization": _auth_header(),
-            "Accept":        "application/json",
-            "Content-Type":  "application/json",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
         },
         method="POST",
     )
@@ -237,10 +238,10 @@ def create_sscve_issue(summary: str) -> str | None:
     SSCVE_PARENT_KEY, SSCVE_FIX_VERSION, SSCVE_ASSIGNEE_ID 환경변수로 변경 가능.
     """
     fields: dict = {
-        "project":   {"key": TARGET_PROJECT},
-        "summary":   summary,
+        "project": {"key": TARGET_PROJECT},
+        "summary": summary,
         "issuetype": {"id": TARGET_ISSUE_TYPE_ID},
-        "assignee":  {"accountId": ASSIGNEE_ID},
+        "assignee": {"accountId": ASSIGNEE_ID},
     }
 
     if PARENT_KEY:
@@ -260,8 +261,8 @@ def create_sscve_issue(summary: str) -> str | None:
 def create_issue_link(intqa_key: str, sscve_key: str) -> bool:
     """INTQA -> SSCVE '문의대응 처리 이슈' 링크 생성"""
     status, _ = jira_post("/rest/api/3/issueLink", {
-        "type":         {"id": LINK_TYPE_ID},
-        "inwardIssue":  {"key": intqa_key},
+        "type": {"id": LINK_TYPE_ID},
+        "inwardIssue": {"key": intqa_key},
         "outwardIssue": {"key": sscve_key},
     })
     return status == 201
@@ -330,7 +331,7 @@ def prompt_settings() -> None:
 
 def main() -> None:
     global logger
-    logger   = _setup_logger()
+    logger = _setup_logger()
     check_env()
 
     interval = parse_interval()
@@ -361,7 +362,7 @@ def main() -> None:
     while True:
         try:
             time.sleep(interval)
-            current      = fetch_intqa_in_progress()
+            current = fetch_intqa_in_progress()
             current_keys = set(current.keys())
 
             new_keys = current_keys - known_keys
