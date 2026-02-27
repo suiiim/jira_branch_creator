@@ -97,6 +97,23 @@ python main.py transitions SSCVE-123   # 가능한 상태 전환 조회
 | `docs` | 문서 수정 |
 | `chore` | 설정, 패키지 등 기타 |
 
+## 로그
+
+워처 실행 시 로그가 자동 생성됩니다. 자세한 규칙은 [references/LOG_FORMAT.md](references/LOG_FORMAT.md)를 참조하세요.
+
+| 항목 | 내용 |
+|------|------|
+| 저장 위치 | `%USERPROFILE%\Desktop\jira-sync-logs\` |
+| 파일명 | `watch_intqa_YYYYMMDD.log` (일별 자동 로테이션) |
+| 포맷 | `[YYYY-MM-DD HH:MM:SS] [LEVEL] MESSAGE` |
+| 레벨 | `INFO` / `OK` / `SKIP` / `WARN` / `ERROR` |
+| 출력 | 콘솔 + 파일 동시 출력 |
+
+경로 변경 시 환경변수 `LOG_DIR` 사용:
+```bash
+LOG_DIR="D:\my-logs" python scripts/watch_intqa_and_sync.py
+```
+
 ## 에지 케이스
 
 - Jira 연결 실패 → API 토큰/URL 확인 안내
