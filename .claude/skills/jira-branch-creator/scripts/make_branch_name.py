@@ -3,13 +3,10 @@
 브랜치명 생성 헬퍼
 
 Usage:
-    python make_branch_name.py <issue_type> <issue_key> <summary>
+    python make_branch_name.py <issue_key>
 
-    python make_branch_name.py Bug SSCVE-123 "Fix login error"
-    → bugfix/SSCVE-123-fix-login-error
-
-    python make_branch_name.py Story SSCVE-456 "로그인 기능 추가"
-    → feature/SSCVE-456   (한글 요약은 슬러그 제거 후 이슈 키만)
+    python make_branch_name.py SSCVE-2704
+    → feature/SSCVE-2704
 
 Exit codes:
     0 - 성공 (stdout에 브랜치명 출력)
@@ -20,55 +17,29 @@ import re
 import sys
 
 
-PREFIX_MAP: dict[str, str] = {
-    "bug":      "bugfix",
-    "story":    "feature",
-    "task":     "task",
-    "epic":     "epic",
-    "subtask":  "feature",
-    "sub-task": "feature",
-}
-
-MAX_SLUG_LEN  = 50
-MAX_BRANCH_LEN = 63
+ALLOWED_PROJECT = "SSCVE"
+ISSUE_KEY_RE    = re.compile(r"^([A-Z][A-Z0-9]+)-(\d+)$")
 
 
-def issue_type_to_prefix(issue_type: str) -> str:
-    return PREFIX_MAP.get(issue_type.lower(), "feature")
-
-
-def summary_to_slug(summary: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", summary.lower()).strip("-")
-    return slug[:MAX_SLUG_LEN].rstrip("-")
-
-
-def make_branch_name(issue_type: str, issue_key: str, summary: str) -> str:
-    prefix = issue_type_to_prefix(issue_type)
-    slug   = summary_to_slug(summary)
-
-    if slug:
-        branch = f"{prefix}/{issue_key}-{slug}"
-    else:
-        branch = f"{prefix}/{issue_key}"
-
-    # 최대 길이 초과 시 슬러그 잘라냄
-    if len(branch) > MAX_BRANCH_LEN:
-        allowed = MAX_BRANCH_LEN - len(f"{prefix}/{issue_key}-")
-        slug    = slug[:allowed].rstrip("-")
-        branch  = f"{prefix}/{issue_key}-{slug}"
-
-    return branch
+def make_branch_name(issue_key: str) -> str:
+    return f"feature/{issue_key}"
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 4:
-        print("Usage: python make_branch_name.py <issue_type> <issue_key> <summary>")
-        print("Example: python make_branch_name.py Bug SSCVE-123 'Fix login error'")
+    if len(sys.argv) < 2:
+        print("Usage: python make_branch_name.py <issue_key>")
+        print("Example: python make_branch_name.py SSCVE-2704")
         sys.exit(1)
 
-    issue_type = sys.argv[1]
-    issue_key  = sys.argv[2].strip().upper()
-    summary    = sys.argv[3]
+    key = sys.argv[1].strip().upper()
 
-    result = make_branch_name(issue_type, issue_key, summary)
-    print(result)
+    if not ISSUE_KEY_RE.match(key):
+        print(f"Invalid issue key format: '{key}' (expected: SSCVE-123)", file=sys.stderr)
+        sys.exit(1)
+
+    project = key.split("-")[0]
+    if project != ALLOWED_PROJECT:
+        print(f"Only '{ALLOWED_PROJECT}' project is supported. Got: '{project}'", file=sys.stderr)
+        sys.exit(1)
+
+    print(make_branch_name(key))
