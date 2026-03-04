@@ -7,8 +7,8 @@ packages = ["src/jira_branch_creator"]
 
 [project]
 name = "jira-branch-creator"
-version = "2.0.0"
-description = "Jira 이슈 관리 및 GitLab 브랜치 자동 생성 도구"
+version = "2.1.0"
+description = "Jira 이슈 관리 및 GitLab 브랜치 자동 생성 도구 (시스템 트레이 지원)"
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [
@@ -16,15 +16,22 @@ authors = [
 ]
 dependencies = [
     "requests>=2.32.5",
+    "pystray>=0.19.5",
+    "Pillow>=10.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
 ]
+tray = [
+    "pystray>=0.19.5",
+    "Pillow>=10.0.0",
+]
 
 [project.scripts]
 jira-branch = "jira_branch_creator.main:main"
+jira-branch-tray = "jira_branch_creator.tray:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

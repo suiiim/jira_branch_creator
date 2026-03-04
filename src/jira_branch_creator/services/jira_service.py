@@ -164,6 +164,41 @@ class JiraService:
         )
         return transitions
 
+    def search_recent_issues(
+        self,
+        project_key: str,
+        minutes: int = 2,
+    ) -> list[JiraIssue]:
+        """최근 N분 이내 생성된 이슈를 조회합니다.
+
+        Args:
+            project_key: Jira 프로젝트 키 (예: "SSCVE").
+            minutes: 조회할 시간 범위 (분).
+
+        Returns:
+            최근 생성된 이슈 목록.
+        """
+        jql = (
+            f"project={project_key} "
+            f"AND created >= -{minutes}m "
+            f"ORDER BY created DESC"
+        )
+        data = self._request(
+            "GET",
+            "/rest/api/3/search",
+            params={
+                "jql": jql,
+                "maxResults": 20,
+                "fields": "summary,issuetype,status",
+            },
+        )
+        issues = [
+            JiraIssue.from_api_response(item)
+            for item in data.get("issues", [])
+        ]
+        logger.debug("최근 %d분 이슈 %d개 조회 (%s)", minutes, len(issues), project_key)
+        return issues
+
     def transition_issue(self, issue_key: str, target_status: str) -> JiraIssue:
         """이슈의 상태를 전환합니다.
 

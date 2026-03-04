@@ -54,8 +54,9 @@ SOURCE_PROJECT       = "INTQA"
 TARGET_PROJECT       = "SSCVE"
 TARGET_ISSUE_TYPE_ID = "10124"   # 작업
 LINK_TYPE_ID         = "10000"   # 문의대응 (outward: 문의대응 처리 이슈)
-SSCVE_TODO_STATUS_ID = "10138"   # 할일
-SSCVE_TODO_STATUS    = "\ud560\uc77c"  # 할일
+SSCVE_TODO_STATUS_ID         = "10138"           # 할일
+SSCVE_IN_PROGRESS_STATUS_IDS = ("10109", "10148") # 진행중, 진행 중
+SSCVE_TODO_STATUS            = "\ud560\uc77c"     # 할일
 
 # SSCVE 이슈 생성 옵션
 ASSIGNEE_ID  = "60fe2779e6e6f800718020a3"  # 하수임 (고정)
@@ -300,15 +301,22 @@ def run_phase1() -> None:
     logger.info(f"Phase 1 완료: 생성 {created}건 / 건너뜀 {skipped}건")
 
 
-# ─── Phase 2: SSCVE 할일 -> 브랜치 생성 ─────────────────────────────────────
+# ─── Phase 2: SSCVE 할일/진행중 -> 브랜치 생성 ──────────────────────────────
 
-def fetch_sscve_todo_issues() -> list[dict]:
-    """SSCVE 할일 이슈 조회"""
+SSCVE_TASK_ISSUE_TYPE_ID = "10124"  # 작업
+
+
+def fetch_sscve_issues_for_branch() -> list[dict]:
+    """SSCVE 할일 + 진행중 이슈 중 이슈 유형이 '작업'인 것만 조회 (브랜치 생성 대상)"""
+    status_ids = ", ".join(
+        [SSCVE_TODO_STATUS_ID] + list(SSCVE_IN_PROGRESS_STATUS_IDS)
+    )
     _, data = jira_post("/rest/api/3/search/jql", {
         "jql": (
             f"project={TARGET_PROJECT} "
             f"AND assignee=currentUser() "
-            f"AND status = {SSCVE_TODO_STATUS_ID} "
+            f"AND status IN ({status_ids}) "
+            f"AND issuetype = {SSCVE_TASK_ISSUE_TYPE_ID} "
             f"ORDER BY updated DESC"
         ),
         "fields": ["summary", "issuetype", "status"],
@@ -318,7 +326,7 @@ def fetch_sscve_todo_issues() -> list[dict]:
         return []
     issues = data.get("issues", [])
     total  = data.get("total", len(issues))
-    logger.info(f"{TARGET_PROJECT} '{SSCVE_TODO_STATUS}' 이슈: {total}건 조회됨")
+    logger.info(f"{TARGET_PROJECT} '할일 + 진행중' 이슈: {total}건 조회됨")
     return issues
 
 
@@ -351,17 +359,17 @@ def create_flow_feature_branch(feature_name: str) -> bool:
 
 
 def run_phase2(dry_run: bool) -> None:
-    """Phase 2: SSCVE 할일 이슈 -> git flow feature 브랜치 생성"""
+    """Phase 2: SSCVE 할일/진행중 이슈 -> git flow feature 브랜치 생성"""
     logger.info("=" * 50)
-    logger.info(f"[Phase 2] {TARGET_PROJECT} '{SSCVE_TODO_STATUS}' -> git flow feature 브랜치 생성")
+    logger.info(f"[Phase 2] {TARGET_PROJECT} '할일/진행중' -> git flow feature 브랜치 생성")
     if dry_run:
         logger.info("[DRY-RUN 모드: 실제 브랜치 생성 안 함]")
     logger.info("=" * 50)
     logger.info(f"저장소: {REPO_PATH}")
 
-    issues = fetch_sscve_todo_issues()
+    issues = fetch_sscve_issues_for_branch()
     if not issues:
-        logger.info(f"'{SSCVE_TODO_STATUS}' 상태인 SSCVE 이슈가 없습니다.")
+        logger.info("'할일/진행중' 상태인 SSCVE 이슈가 없습니다.")
         return
 
     local_branches = get_local_branches()
@@ -369,11 +377,12 @@ def run_phase2(dry_run: bool) -> None:
 
     created, skipped, failed = 0, 0, 0
     for issue in issues:
-        key    = issue["key"]
+        key     = issue["key"]
         summary = issue["fields"]["summary"]
+        status  = issue["fields"]["status"]["name"]
         branch  = f"feature/{key}"
 
-        logger.info(f"[{key}] 브랜치: {branch}")
+        logger.info(f"[{key}] [{status}] 브랜치: {branch}")
         logger.info(f"제목: {summary}")
 
         if branch in local_branches:

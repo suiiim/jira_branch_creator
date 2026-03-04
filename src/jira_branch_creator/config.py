@@ -1,6 +1,6 @@
 """설정 관리 모듈.
 
-환경변수에서 Jira/GitLab 설정을 로드합니다.
+환경변수에서 Jira/GitLab/트레이 설정을 로드합니다.
 """
 
 from __future__ import annotations
@@ -53,12 +53,23 @@ class BranchNamingConfig:
 
 
 @dataclass(frozen=True)
+class TrayConfig:
+    """시스템 트레이 설정."""
+
+    poll_interval: int = 30
+    tooltip: str = "Jira Branch Creator"
+    autostart: bool = False
+    notify_on_create: bool = True
+
+
+@dataclass(frozen=True)
 class AppConfig:
     """애플리케이션 전체 설정."""
 
     jira: JiraConfig
     gitlab: GitLabConfig
     branch_naming: BranchNamingConfig
+    tray: TrayConfig = TrayConfig()
 
 
 def _require_env(name: str) -> str:
@@ -83,6 +94,9 @@ def load_config() -> AppConfig:
         JIRA_PROJECT_KEY (기본: SSCVE)
         GITLAB_DEFAULT_BRANCH (기본: develop)
         BRANCH_MAX_SLUG_LENGTH (기본: 50)
+        TRAY_POLL_INTERVAL (기본: 30)
+        TRAY_AUTOSTART (기본: false)
+        TRAY_NOTIFY (기본: true)
     """
     jira = JiraConfig(
         base_url=_require_env("JIRA_BASE_URL").rstrip("/"),
@@ -102,4 +116,10 @@ def load_config() -> AppConfig:
         max_slug_length=int(os.environ.get("BRANCH_MAX_SLUG_LENGTH", "50")),
     )
 
-    return AppConfig(jira=jira, gitlab=gitlab, branch_naming=branch_naming)
+    tray = TrayConfig(
+        poll_interval=int(os.environ.get("TRAY_POLL_INTERVAL", "30")),
+        autostart=os.environ.get("TRAY_AUTOSTART", "false").lower() in ("1", "true", "yes"),
+        notify_on_create=os.environ.get("TRAY_NOTIFY", "true").lower() in ("1", "true", "yes"),
+    )
+
+    return AppConfig(jira=jira, gitlab=gitlab, branch_naming=branch_naming, tray=tray)

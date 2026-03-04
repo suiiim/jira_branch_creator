@@ -14,6 +14,13 @@ build/
 # Claude
 .claude/settings.local.json
 
+# Tray
+*.ico
+assets/icon.png
+
+# State
+*.state.json
+
 # OS
 .DS_Store
 Thumbs.db
