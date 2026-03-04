@@ -409,20 +409,47 @@ def run_phase2(dry_run: bool) -> None:
 
 # ─── 메인 ────────────────────────────────────────────────────────────────────
 
+EPIC_ISSUE_TYPE_ID = "10000"  # 에픽
+
+
+def fetch_recent_epics(n: int = 5) -> list[dict]:
+    """SSCVE 에픽 최근 생성 순 n개 조회"""
+    _, data = jira_post("/rest/api/3/search/jql", {
+        "jql": (
+            f"project={TARGET_PROJECT} "
+            f"AND issuetype = {EPIC_ISSUE_TYPE_ID} "
+            f"ORDER BY created DESC"
+        ),
+        "fields": ["summary"],
+        "maxResults": n,
+    })
+    if not data:
+        return []
+    return data.get("issues", [])
+
+
 def prompt_settings() -> None:
     """PARENT_KEY, FIX_VERSION 을 실행 시 프롬프트로 변경할 수 있습니다."""
     global PARENT_KEY, FIX_VERSION
 
-    print(f"  상위 항목 (에픽) [{PARENT_KEY}]: ", end="", flush=True)
-    val = input().strip()
+    # 에픽 목록 표시
+    epics = fetch_recent_epics(5)
+    print("")
+    if epics:
+        print("  [상위 항목 최근 에픽 5개]")
+        for ep in epics:
+            print(f"    {ep['key']}  {ep['fields']['summary']}")
+    print(f"  선택 (SSCVE 번호 입력, Enter = {PARENT_KEY}): ", end="", flush=True)
+    val = input().strip().upper()
     if val:
         PARENT_KEY = val
 
-    print(f"  수정 버전        [{FIX_VERSION}]: ", end="", flush=True)
+    print(f"  수정 버전 [{FIX_VERSION}]: ", end="", flush=True)
     val = input().strip()
     if val:
         FIX_VERSION = val
 
+    print("")
     logger.info(f"설정 - 상위 항목: {PARENT_KEY}, 수정 버전: {FIX_VERSION}")
 
 
