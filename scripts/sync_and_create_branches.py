@@ -344,6 +344,25 @@ def get_local_branches() -> set[str]:
     return {b.strip() for b in result.stdout.splitlines() if b.strip()}
 
 
+def pull_base_branches() -> None:
+    """develop, hotfix 브랜치 git pull (브랜치 생성 전 최신 상태 유지)"""
+    for branch in ("develop", "hotfix"):
+        result = subprocess.run(
+            ["git", "fetch", "origin", f"{branch}:{branch}"],
+            cwd=REPO_PATH,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            log_ok(f"{branch} 브랜치 pull 완료")
+        else:
+            stderr = result.stderr.strip()
+            if "couldn't find remote ref" in stderr or "does not exist" in stderr:
+                logger.warning(f"{branch} 브랜치가 원격에 존재하지 않아 건너뜁니다.")
+            else:
+                logger.warning(f"{branch} 브랜치 pull 실패: {stderr}")
+
+
 def create_flow_feature_branch(feature_name: str) -> bool:
     """git flow feature start {feature_name} 실행"""
     result = subprocess.run(
@@ -366,6 +385,8 @@ def run_phase2(dry_run: bool) -> None:
         logger.info("[DRY-RUN 모드: 실제 브랜치 생성 안 함]")
     logger.info("=" * 50)
     logger.info(f"저장소: {REPO_PATH}")
+
+    pull_base_branches()
 
     issues = fetch_sscve_issues_for_branch()
     if not issues:
