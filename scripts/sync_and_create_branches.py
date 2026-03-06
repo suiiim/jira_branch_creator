@@ -303,20 +303,19 @@ def run_phase1() -> None:
 
 # ─── Phase 2: SSCVE 할일/진행중 -> 브랜치 생성 ──────────────────────────────
 
-SSCVE_TASK_ISSUE_TYPE_ID = "10124"  # 작업
+SSCVE_BRANCH_ISSUE_TYPE_IDS = ("10124", "10004")  # 작업, 버그
 
 
 def fetch_sscve_issues_for_branch() -> list[dict]:
-    """SSCVE 할일 + 진행중 이슈 중 이슈 유형이 '작업'인 것만 조회 (브랜치 생성 대상)"""
-    status_ids = ", ".join(
-        [SSCVE_TODO_STATUS_ID] + list(SSCVE_IN_PROGRESS_STATUS_IDS)
-    )
+    """SSCVE 할일 + 진행중 이슈 중 이슈 유형이 '작업' 또는 '버그'인 것만 조회 (브랜치 생성 대상)"""
+    status_ids     = ", ".join([SSCVE_TODO_STATUS_ID] + list(SSCVE_IN_PROGRESS_STATUS_IDS))
+    issue_type_ids = ", ".join(SSCVE_BRANCH_ISSUE_TYPE_IDS)
     _, data = jira_post("/rest/api/3/search/jql", {
         "jql": (
             f"project={TARGET_PROJECT} "
             f"AND assignee=currentUser() "
             f"AND status IN ({status_ids}) "
-            f"AND issuetype = {SSCVE_TASK_ISSUE_TYPE_ID} "
+            f"AND issuetype IN ({issue_type_ids}) "
             f"ORDER BY updated DESC"
         ),
         "fields": ["summary", "issuetype", "status"],

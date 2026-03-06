@@ -120,7 +120,7 @@ SSCVE 이슈 생성 시 자동으로 지정되는 필드:
 1. `C:\workspace\c-project` 저장소의 `develop`, `release` 브랜치를 먼저 git pull합니다.
    - 현재 체크아웃된 브랜치인 경우 `git pull`, 아닌 경우 `git fetch origin {branch}:{branch}` 실행
    - 원격에 해당 브랜치가 없으면 건너뜁니다.
-2. SSCVE 프로젝트에서 **현재 사용자 할당 + 할일 또는 진행중 + 이슈 유형이 버그**인 이슈를 조회합니다.
+2. SSCVE 프로젝트에서 **현재 사용자 할당 + 할일 또는 진행중 + 이슈 유형이 작업 또는 버그**인 이슈를 조회합니다.
 3. `C:\workspace\c-project` 로컬 저장소에 해당 브랜치가 이미 존재하면 → **SKIP**
 4. 없으면 → `git flow feature start SSCVE-XXXX` 명령을 실행합니다.
 
@@ -175,7 +175,7 @@ SSCVE 이슈 생성 시 자동으로 지정되는 필드:
 |------|-----------|
 | INTQA 이슈에 문의대응 링크가 이미 있음 | SSCVE 이슈 생성 SKIP |
 | SSCVE 브랜치가 로컬에 이미 존재 | 브랜치 생성 SKIP |
-| SSCVE 이슈 유형이 버그가 아님 (에픽, 스토리, 작업 등) | 브랜치 생성 대상에서 제외 |
+| SSCVE 이슈 유형이 작업·버그가 아님 (에픽, 스토리 등) | 브랜치 생성 대상에서 제외 |
 | develop/release 브랜치가 현재 체크아웃 상태 | `git fetch` 대신 `git pull`로 자동 처리 |
 | develop/release 브랜치가 원격에 없음 | WARN 로그 출력 후 건너뜀 |
 | 환경변수 미설정 | 누락 변수 목록 출력 후 종료 |
