@@ -15,9 +15,11 @@ INTQA -> SSCVE 이슈 동기화 + git flow 브랜치 생성 통합 스크립트
   - 포맷: [YYYY-MM-DD HH:MM:SS] [LEVEL] MESSAGE
 
 Usage:
-    python scripts/sync_and_create_branches.py [--dry-run]
+    python scripts/sync_and_create_branches.py [--parent SSCVE-XXXX] [--version X.Y.Z] [--dry-run]
 
-    --dry-run  Phase 2 브랜치 생성을 실제로 수행하지 않고 목록만 출력
+    --parent, -p   상위 항목(에픽) 이슈 키 (기본값: SSCVE-2561)
+    --version, -v  수정 버전 (기본값: 2.0.32)
+    --dry-run      Phase 2 브랜치 생성을 실제로 수행하지 않고 목록만 출력
 
 환경변수:
     JIRA_BASE_URL    - Jira 인스턴스 URL (필수)
@@ -29,6 +31,7 @@ Python 3.9+ 필요
 
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 import json
@@ -462,42 +465,42 @@ def fetch_recent_epics(n: int = 5) -> list[dict]:
     return data.get("issues", [])
 
 
-def prompt_settings() -> None:
-    """PARENT_KEY, FIX_VERSION 을 실행 시 프롬프트로 변경할 수 있습니다."""
-    global PARENT_KEY, FIX_VERSION
-
-    # 에픽 목록 표시
-    epics = fetch_recent_epics(5)
-    print("")
-    if epics:
-        print("  [상위 항목 최근 에픽 5개]")
-        for ep in epics:
-            print(f"    {ep['key']}  {ep['fields']['summary']}")
-    print(f"  선택 (SSCVE 번호 입력, Enter = {PARENT_KEY}): ", end="", flush=True)
-    val = input().strip().upper()
-    if val:
-        PARENT_KEY = val
-
-    print(f"  수정 버전 [{FIX_VERSION}]: ", end="", flush=True)
-    val = input().strip()
-    if val:
-        FIX_VERSION = val
-
-    print("")
-    logger.info(f"설정 - 상위 항목: {PARENT_KEY}, 수정 버전: {FIX_VERSION}")
-
-
 def main() -> None:
-    global logger
-    logger  = _setup_logger()
-    dry_run = "--dry-run" in sys.argv
+    global logger, PARENT_KEY, FIX_VERSION
+
+    parser = argparse.ArgumentParser(
+        description="INTQA -> SSCVE 동기화 + git flow 브랜치 생성"
+    )
+    parser.add_argument(
+        "--parent", "-p",
+        default=PARENT_KEY,
+        metavar="SSCVE-XXXX",
+        help=f"상위 항목(에픽) 이슈 키 (기본값: {PARENT_KEY})",
+    )
+    parser.add_argument(
+        "--version", "-v",
+        default=FIX_VERSION,
+        metavar="X.Y.Z",
+        help=f"수정 버전 (기본값: {FIX_VERSION})",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Phase 2 브랜치 생성을 실제로 수행하지 않고 목록만 출력",
+    )
+    args = parser.parse_args()
+
+    PARENT_KEY  = args.parent.upper()
+    FIX_VERSION = args.version
+
+    logger = _setup_logger()
     check_env()
 
     logger.info("INTQA -> SSCVE 동기화 + git flow 브랜치 생성 시작")
-    prompt_settings()
+    logger.info(f"설정 - 상위 항목: {PARENT_KEY}, 수정 버전: {FIX_VERSION}")
 
     run_phase1()
-    run_phase2(dry_run)
+    run_phase2(args.dry_run)
 
     logger.info("전체 완료")
 

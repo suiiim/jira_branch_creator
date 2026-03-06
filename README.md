@@ -55,46 +55,43 @@ git flow version  # git-flow version 1.12.3 (AVH Edition) 등 출력 확인
 
 ### 기본 실행
 
-프로젝트 루트에서 아래 명령을 실행합니다.
+인자 없이 실행하면 스크립트 상단에 정의된 기본값(`SSCVE-2561` / `2.0.32`)으로 동작합니다.
 
 ```bash
 python scripts/sync_and_create_branches.py
 ```
 
-실행하면 먼저 설정 프롬프트가 표시됩니다. SSCVE 에픽 중 최근 생성된 5개를 자동으로 조회해서 보여줍니다:
+### 인자 목록
 
-```
-  [상위 항목 최근 에픽 5개]
-    SSCVE-2652  2.0.33-fix
-    SSCVE-2651  2.0.33-dev
-    SSCVE-2561  2.0.32-fix
-    SSCVE-2560  2.0.32-dev
-    SSCVE-2327  2.0.31-fix
-  선택 (SSCVE 번호 입력, Enter = SSCVE-2561):
-  수정 버전 [2.0.32]:
-```
+| 인자 | 축약형 | 기본값 | 설명 |
+|------|--------|--------|------|
+| `--parent SSCVE-XXXX` | `-p` | `SSCVE-2561` | Phase 1에서 생성할 SSCVE 이슈의 상위 항목(에픽) |
+| `--version X.Y.Z` | `-v` | `2.0.32` | Phase 1에서 생성할 SSCVE 이슈의 수정 버전 |
+| `--dry-run` | | (없음) | Phase 2 브랜치 생성을 실제로 수행하지 않고 목록만 출력 |
 
-**상위 항목 선택 방법:**
-- **Enter를 그냥 누르면** 괄호 안의 기본값이 사용됩니다.
-- **목록에 있는 SSCVE 번호를 입력하면** 해당 에픽이 상위 항목으로 지정됩니다.
-- **목록에 없는 번호를 직접 입력해도** 됩니다 (예: `SSCVE-2800`).
-- 입력한 값은 해당 실행에만 적용됩니다 (다음 실행 시 다시 기본값으로 돌아옴).
-
-예시: 상위 항목을 `SSCVE-2652`로, 수정 버전을 `2.0.33`으로 변경하는 경우:
-
-```
-  선택 (SSCVE 번호 입력, Enter = SSCVE-2561): SSCVE-2652
-  수정 버전 [2.0.32]: 2.0.33
-```
-
-### dry-run 모드 (브랜치 생성 없이 목록만 확인)
-
-Phase 2에서 실제로 브랜치를 생성하지 않고 생성 예정 목록만 출력합니다.
-Phase 1(SSCVE 이슈 생성)은 dry-run에 관계없이 실제로 실행됩니다.
+### 사용 예시
 
 ```bash
+# 기본값으로 실행
+python scripts/sync_and_create_branches.py
+
+# 상위 항목과 수정 버전 지정
+python scripts/sync_and_create_branches.py --parent SSCVE-2651 --version 2.0.33
+
+# 축약형 사용
+python scripts/sync_and_create_branches.py -p SSCVE-2651 -v 2.0.33
+
+# 브랜치 생성 없이 목록만 확인 (dry-run)
 python scripts/sync_and_create_branches.py --dry-run
+
+# 인자와 dry-run 동시 사용
+python scripts/sync_and_create_branches.py -p SSCVE-2651 -v 2.0.33 --dry-run
 ```
+
+### dry-run 모드
+
+Phase 2에서 실제로 브랜치를 생성하지 않고 생성 예정 목록만 출력합니다.
+Phase 1(SSCVE 이슈 생성)은 `--dry-run`에 관계없이 실제로 실행됩니다.
 
 ---
 
@@ -191,6 +188,6 @@ SSCVE 이슈 생성 시 자동으로 지정되는 필드:
 | 상수 | 현재 값 | 설명 |
 |------|---------|------|
 | `ASSIGNEE_ID` | `60fe2779e6e6f800718020a3` | SSCVE 이슈 담당자 (하수임) |
-| `PARENT_KEY` | `SSCVE-2561` | 기본 상위 항목 (에픽) |
-| `FIX_VERSION` | `2.0.32` | 기본 수정 버전 |
+| `PARENT_KEY` | `SSCVE-2561` | 기본 상위 항목 (에픽), `--parent`로 실행 시 덮어쓸 수 있음 |
+| `FIX_VERSION` | `2.0.32` | 기본 수정 버전, `--version`으로 실행 시 덮어쓸 수 있음 |
 | `REPO_PATH` | `C:\workspace\c-project` | git flow 브랜치를 생성할 저장소 경로 |
