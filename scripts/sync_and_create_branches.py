@@ -52,7 +52,7 @@ TOKEN                = os.environ.get("JIRA_API_TOKEN", "")
 
 SOURCE_PROJECT       = "INTQA"
 TARGET_PROJECT       = "SSCVE"
-TARGET_ISSUE_TYPE_ID = "10124"   # 작업
+TARGET_ISSUE_TYPE_ID = "10004"   # 버그
 LINK_TYPE_ID         = "10000"   # 문의대응 (outward: 문의대응 처리 이슈)
 SSCVE_TODO_STATUS_ID         = "10138"           # 할일
 SSCVE_IN_PROGRESS_STATUS_IDS = ("10109", "10148") # 진행중, 진행 중
@@ -233,7 +233,7 @@ def fetch_linked_sscve_key(intqa_key: str) -> str | None:
 
 
 def create_sscve_issue(summary: str) -> str | None:
-    """SSCVE에 작업 이슈 생성 -> 새 이슈 키 반환. 실패 시 None."""
+    """SSCVE에 버그 이슈 생성 -> 새 이슈 키 반환. 실패 시 None."""
     fields: dict = {
         "project":   {"key": TARGET_PROJECT},
         "summary":   summary,
@@ -345,19 +345,33 @@ def get_local_branches() -> set[str]:
 
 
 def pull_base_branches() -> None:
-    """develop, hotfix 브랜치 git pull (브랜치 생성 전 최신 상태 유지)"""
-    for branch in ("develop", "hotfix"):
-        result = subprocess.run(
-            ["git", "fetch", "origin", f"{branch}:{branch}"],
-            cwd=REPO_PATH,
-            capture_output=True,
-            text=True,
-        )
+    """develop, release 브랜치 git pull (브랜치 생성 전 최신 상태 유지)"""
+    # 현재 체크아웃된 브랜치 확인
+    cur = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=REPO_PATH, capture_output=True, text=True,
+    )
+    current_branch = cur.stdout.strip() if cur.returncode == 0 else ""
+
+    for branch in ("develop", "release"):
+        if current_branch == branch:
+            # 현재 브랜치인 경우: git pull
+            result = subprocess.run(
+                ["git", "pull"],
+                cwd=REPO_PATH, capture_output=True, text=True,
+            )
+        else:
+            # 다른 브랜치인 경우: fetch로 로컬 브랜치 업데이트
+            result = subprocess.run(
+                ["git", "fetch", "origin", f"{branch}:{branch}"],
+                cwd=REPO_PATH, capture_output=True, text=True,
+            )
+
         if result.returncode == 0:
             log_ok(f"{branch} 브랜치 pull 완료")
         else:
             stderr = result.stderr.strip()
-            if "couldn't find remote ref" in stderr or "does not exist" in stderr:
+            if any(msg in stderr for msg in ("couldn't find remote ref", "does not exist")):
                 logger.warning(f"{branch} 브랜치가 원격에 존재하지 않아 건너뜁니다.")
             else:
                 logger.warning(f"{branch} 브랜치 pull 실패: {stderr}")
